@@ -1,6 +1,6 @@
 services:
   discord-backup:
-    image: discord-backup
+    build: .
     container_name: discord-backup
     env_file:
       - .env
