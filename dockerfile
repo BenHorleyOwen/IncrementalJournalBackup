@@ -29,5 +29,4 @@ RUN chmod +x /entrypoint.sh
 
 # Set entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python", "export.py"]
 
