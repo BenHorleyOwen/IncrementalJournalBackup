@@ -9,5 +9,5 @@ BACKUP_DIR
 
 then run docker compose up in the directory.
 	
-follow the instructions outlined by Tyrrrz/DiscordChatExporter to set up your API key, (Also read their blog post)[https://tyrrrz.me/ukraine]
+follow the instructions outlined by [Tyrrrz/DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter) to set up your API key, (Also read their blog post)[https://tyrrrz.me/ukraine]
 
