@@ -31,11 +31,16 @@ TEMP_DIR = args.temp_dir
 # --------------------
 # Load last message IDs
 # --------------------
+last_ids = {}
+
 if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r") as f:
-        last_ids = json.load(f)
-else:
-    last_ids = {}
+    try:
+        with open(DATA_FILE, "r") as f:
+            last_ids = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        print("Warning: data file invalid or empty, starting fresh")
+        last_ids = {}
+
 
 # Ensure temp directory exists
 os.makedirs(TEMP_DIR, exist_ok=True)

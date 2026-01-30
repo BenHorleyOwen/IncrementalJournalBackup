@@ -23,5 +23,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy script
 COPY export.py .
 
-# Default command (args overridden at runtime)
-ENTRYPOINT ["python", "export.py"]
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "export.py"]
+
