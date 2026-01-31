@@ -3,7 +3,7 @@ set -e
 
 OUTPUT_PATH="/output"
 MEDIA_PATH="/media"
-DATA_FILE="/data.json"
+DATA_FILE="data.json"
 
 mkdir -p "$OUTPUT_PATH"
 mkdir -p "$MEDIA_PATH"
