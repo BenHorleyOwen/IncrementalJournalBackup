@@ -3,13 +3,14 @@ import json
 import os
 import argparse
 import re
+import shutil
 
 EXPORTER = "/app/ChatExporter/DiscordChatExporter.Cli"
 
 # --------------------
 # Arguments
 # --------------------
-parser = argparse.ArgumentParser(description="Incremental Discord backup (HTML Dark only)")
+parser = argparse.ArgumentParser(description="Incremental Discord backup (HTML Dark + media)")
 
 parser.add_argument("--token", required=True)
 parser.add_argument("--server-id", required=True)
@@ -36,9 +37,9 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 # --------------------
 if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        last_ids = json.load(f)
+        state = json.load(f)
 else:
-    last_ids = {}
+    state = {}
 
 # --------------------
 # HTML helpers
@@ -68,20 +69,17 @@ def append_body(target, fragment):
         return
     with open(target, "r+", encoding="utf-8") as f:
         content = f.read()
-        insert = content.lower().rfind("</body>")
-        new = content[:insert] + "\n" + fragment + "\n" + content[insert:]
+        idx = content.lower().rfind("</body>")
+        merged = content[:idx] + "\n" + fragment + "\n" + content[idx:]
         f.seek(0)
-        f.write(new)
+        f.write(merged)
         f.truncate()
-
-def newest_message_id(html):
-    ids = re.findall(r'data-message-id="(\d+)"', html)
-    return ids[-1] if ids else None
 
 # --------------------
 # Discover channels
 # --------------------
 print("🔍 Discovering channels...")
+
 raw = subprocess.check_output(
     [EXPORTER, "channels", "-g", GUILD_ID, "-t", TOKEN],
     text=True
@@ -112,52 +110,95 @@ for channel_id, channel_name in channels:
     os.makedirs(channel_dir, exist_ok=True)
 
     final_html = os.path.join(channel_dir, "channel.html")
-    temp_html = os.path.join(TEMP_DIR, f"{channel_id}.html")
+    ensure_html(final_html)
 
-    last_id = last_ids.get(channel_id)
+    last_id = state.get(channel_id)
 
-    cmd = [
+    # --------------------
+    # JSON probe export (for message IDs)
+    # --------------------
+    temp_json = os.path.join(TEMP_DIR, f"{channel_id}.json")
+    if os.path.exists(temp_json):
+        os.remove(temp_json)
+
+    json_cmd = [
+        EXPORTER, "export",
+        "-c", channel_id,
+        "-t", TOKEN,
+        "-f", "Json",
+        "-o", temp_json,
+    ]
+
+    if last_id:
+        json_cmd.extend(["--after", last_id])
+
+    subprocess.run(json_cmd, check=False)
+
+    if not os.path.exists(temp_json):
+        print("  ⏭ no new messages")
+        continue
+
+    with open(temp_json, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    messages = data.get("messages", [])
+    if not messages:
+        print("  ⏭ no new messages")
+        continue
+
+    newest_id = messages[-1]["id"]
+
+    # --------------------
+    # HTML export (actual archive)
+    # --------------------
+    temp_html_dir = os.path.join(TEMP_DIR, channel_id)
+    shutil.rmtree(temp_html_dir, ignore_errors=True)
+    os.makedirs(temp_html_dir, exist_ok=True)
+
+    html_cmd = [
         EXPORTER, "export",
         "-c", channel_id,
         "-t", TOKEN,
         "-f", "HtmlDark",
-        "-o", temp_html,
+        "-o", temp_html_dir + "/",
         "--media",
         "--media-dir", MEDIA_PATH,
         "--reuse-media",
     ]
 
     if last_id:
-        cmd.extend(["--after", last_id])
+        html_cmd.extend(["--after", last_id])
 
-    subprocess.run(cmd, check=False)
+    subprocess.run(html_cmd, check=False)
 
-    if not os.path.exists(temp_html):
-        print("  ⏭ export failed")
+    html_files = [
+        f for f in os.listdir(temp_html_dir)
+        if f.lower().endswith(".html")
+    ]
+
+    if not html_files:
+        print("  ⏭ HTML export produced no output")
         continue
+
+    temp_html = os.path.join(temp_html_dir, html_files[0])
 
     with open(temp_html, "r", encoding="utf-8") as f:
         html = f.read()
 
     body = extract_body(html)
-    newest_id = newest_message_id(html)
+    if body:
+        append_body(final_html, body)
 
-    if not body or not newest_id:
-        print("  ⏭ no new messages")
-        os.remove(temp_html)
-        continue
-
-    ensure_html(final_html)
-    append_body(final_html, body)
-    os.remove(temp_html)
-
-    last_ids[channel_id] = newest_id
+    # --------------------
+    # Update state
+    # --------------------
+    state[channel_id] = newest_id
     print(f"  ✅ up to {newest_id}")
 
 # --------------------
 # Save state
 # --------------------
 with open(DATA_FILE, "w", encoding="utf-8") as f:
-    json.dump(last_ids, f, indent=2)
+    json.dump(state, f, indent=2)
 
 print("✔ Backup complete")
