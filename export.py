@@ -2,7 +2,6 @@ import subprocess
 import json
 import os
 import argparse
-import re
 import shutil
 
 EXPORTER = "/app/ChatExporter/DiscordChatExporter.Cli"
@@ -10,7 +9,7 @@ EXPORTER = "/app/ChatExporter/DiscordChatExporter.Cli"
 # --------------------
 # Arguments
 # --------------------
-parser = argparse.ArgumentParser(description="Incremental Discord backup (HTML Dark + media)")
+parser = argparse.ArgumentParser(description="Incremental Discord backup (HTML Dark)")
 
 parser.add_argument("--token", required=True)
 parser.add_argument("--server-id", required=True)
@@ -42,40 +41,6 @@ else:
     state = {}
 
 # --------------------
-# HTML helpers
-# --------------------
-HTML_SHELL = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Discord Channel Export</title>
-</head>
-<body>
-</body>
-</html>
-"""
-
-def ensure_html(path):
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(HTML_SHELL)
-
-def extract_body(html):
-    m = re.search(r"<body[^>]*>(.*?)</body>", html, re.S | re.I)
-    return m.group(1).strip() if m else ""
-
-def append_body(target, fragment):
-    if not fragment.strip():
-        return
-    with open(target, "r+", encoding="utf-8") as f:
-        content = f.read()
-        idx = content.lower().rfind("</body>")
-        merged = content[:idx] + "\n" + fragment + "\n" + content[idx:]
-        f.seek(0)
-        f.write(merged)
-        f.truncate()
-
-# --------------------
 # Discover channels
 # --------------------
 print("🔍 Discovering channels...")
@@ -91,8 +56,6 @@ for line in raw.splitlines():
     if not line or line.startswith("DiscordChatExporter"):
         continue
     parts = line.split()
-    if len(parts) < 2:
-        continue
     cid = parts[0] if parts[0].isdigit() else parts[1]
     name = " ".join(parts[2:]) if len(parts) > 2 else cid
     channels.append((cid, name))
@@ -110,12 +73,10 @@ for channel_id, channel_name in channels:
     os.makedirs(channel_dir, exist_ok=True)
 
     final_html = os.path.join(channel_dir, "channel.html")
-    ensure_html(final_html)
-
     last_id = state.get(channel_id)
 
     # --------------------
-    # JSON probe export (for message IDs)
+    # JSON probe (detect new messages)
     # --------------------
     temp_json = os.path.join(TEMP_DIR, f"{channel_id}.json")
     if os.path.exists(temp_json):
@@ -149,7 +110,7 @@ for channel_id, channel_name in channels:
     newest_id = messages[-1]["id"]
 
     # --------------------
-    # HTML export (actual archive)
+    # HTML export (authoritative)
     # --------------------
     temp_html_dir = os.path.join(TEMP_DIR, channel_id)
     shutil.rmtree(temp_html_dir, ignore_errors=True)
@@ -177,21 +138,14 @@ for channel_id, channel_name in channels:
     ]
 
     if not html_files:
-        print("  ⏭ HTML export produced no output")
+        print("  ⏭ HTML export failed")
         continue
 
-    temp_html = os.path.join(temp_html_dir, html_files[0])
+    shutil.move(
+        os.path.join(temp_html_dir, html_files[0]),
+        final_html
+    )
 
-    with open(temp_html, "r", encoding="utf-8") as f:
-        html = f.read()
-
-    body = extract_body(html)
-    if body:
-        append_body(final_html, body)
-
-    # --------------------
-    # Update state
-    # --------------------
     state[channel_id] = newest_id
     print(f"  ✅ up to {newest_id}")
 
