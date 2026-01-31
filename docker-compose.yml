@@ -5,18 +5,16 @@ services:
     env_file:
       - .env
     volumes:
-      - ${BACKUP_DIR}/output:/output
-      - ${BACKUP_DIR}/media:/media
-      - ${BACKUP_DIR}/data.json:/data.json
+      - ${BACKUP_DIR}:/backup
     command:
       - --token
       - ${BOT_TOKEN}
       - --server-id
       - ${SERVER_ID}
       - --output-path
-      - /output
+      - /backup/output
       - --media-path
-      - /media
+      - /backup/media
       - --data-file
-      - /data.json
+      - /backup/data.json
     restart: "no"
