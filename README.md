@@ -1,4 +1,4 @@
-# IncrementalJournalBackup
+# Incremental Journal Backup
 container compose image which updates the contents of a mounted directory 
 
 to run this for yourself clone the repo and add a .env containing your discord API token and the server ID you want to export as well as the aboslute path of the backup dir
@@ -13,7 +13,8 @@ follow the instructions outlined by [Tyrrrz/DiscordChatExporter](https://github.
 
 ```
 currently
-the files out outputted without channel names or symlinks
+the files output without channel names or symlinks
 the images within the files are not embedded correctly
 e.g. Firefox can’t find the file at /backup/media/Screenshot_20191213_165804-B3C1C.jpg.
 ```
+For future development it would make sense to convert this from a container to a workflow so I could move the script and API keys across devices using repo secrets.
